@@ -1,0 +1,5 @@
+to build the image:
+	docker build --network host -t redirector:latest .
+
+to login in to the container:
+	docker exec -it redi bash

@@ -1,0 +1,75 @@
+#  General stuff  =============================================================
+all.role manager
+all.adminpath /var/run/xrootd
+all.pidpath   /var/run/xrootd
+all.manager meta all cmsxrootd.fnal.gov+ 1213
+all.manager redirector.t2.ucsd.edu:1214
+all.export / global readonly
+xrd.network keepalive kaparms 10m,1m,5
+#==============================================================================
+
+#  Clustering  ================================================================
+cms.dfs lookup distrib mdhold 20m redirect immed
+cms.blacklist check 1m /etc/xrootd/cms.blacklist
+cms.allow host *
+cms.delay    startup 10 servers 1 qdl 30 lookup 5
+cms.fxhold   noloc 2h 4h
+cms.perf     int 30s pgm /usr/share/xrootd/utils/XrdOlbMonPerf 30
+cms.sched    io 60 runq 30 cpu 10 mem 0 pag 0 space 0 fuzz 100 refreset 3600
+cms.space    linger 0 recalc 60 min 1% 10g 1% 20g
+cms.repstats frq
+if exec cmsd
+   xrd.port 1214
+fi
+#==============================================================================
+
+#  Authentication and Voms mapping  ===========================================
+xrootd.seclib /usr/lib64/libXrdSec.so
+sec.protocol /usr/lib64 gsi -certdir:/etc/grid-security/certificates \
+                    -cert:/etc/grid-security/xrd/xrdcert.pem \
+                    -key:/etc/grid-security/xrd/xrdkey.pem \
+                    -crl:try \
+                    -vomsfun:libXrdVoms.so \
+                    -vomsfunparms:certfmt=pem|grpopt=usefirst \
+                    -gmapopt:trymap -gmapto:0 \
+                    -gridmap:/etc/grid-security/grid-mapfile
+
+ofs.authlib ++ libXrdMacaroons.so
+ofs.authlib ++ libXrdAccSciTokens.so config=/etc/xrootd/scitokens.conf
+macaroons.secretkey /etc/xrootd/macaroon-secret
+voms.mapfile /etc/xrootd/voms-mapfile
+#==============================================================================
+
+#  Authorization and HTTPS  ===================================================
+if exec xrootd 
+  xrd.port 1095
+  xrd.timeout idle 30m
+  ofs.authorize 1
+  acc.authdb    /etc/xrootd/Authfile
+  acc.audit     deny grant
+
+  xrd.protocol http:1095 /usr/lib64/libXrdHttp.so
+  http.exthandler xrdmacaroons libXrdMacaroons.so
+  http.exthandler xrdtpc libXrdHttpTPC.so
+  http.gridmap /etc/grid-security/grid-mapfile
+  http.header2cgi Authorization authz
+  http.listingdeny yes
+  http.secxtractor /usr/lib64/libXrdVoms.so
+  http.staticpreload http://static/robots.txt /etc/xrootd/robots.txt
+  http.desthttps yes
+  xrd.tls /etc/grid-security/xrd/xrdcert.pem /etc/grid-security/xrd/xrdkey.pem
+  xrd.tlsca certdir /etc/grid-security/certificates
+fi
+#==============================================================================
+
+# Monitoring ==================================================================
+all.sitename   T2_US_UCSD-ceph
+xrd.report     xrootd.t2.ucsd.edu:9931 every 30s all sync
+xrootd.monitor all auth flush io 60s ident 5m mbuff 8k rbuff 4k rnums 3 window 10s dest files io info user redir xrd-report.osgstorage.org:9930  dest files iov info user tcpmon ccm 169.228.130.78:9993
+#==============================================================================
+
+# Logging =====================================================================
+xrootd.trace emsg login stall redirect
+#http.trace all
+#scitokens.trace all
+#==============================================================================
